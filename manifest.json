@@ -1,0 +1,11 @@
+{
+  "name": "Muslim Companion",
+  "short_name": "Muslim Companion",
+  "description": "Your daily Islamic guide — Salah, Zakat, Dhikr, Du'aa, Ramadan & more",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0A0F1C",
+  "theme_color": "#0A0F1C",
+  "orientation": "portrait",
+  "icons": []
+}
