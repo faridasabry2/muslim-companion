@@ -11,32 +11,58 @@
   <link rel="manifest" href="manifest.json" />
   <style>
     html, body, #root { margin:0; padding:0; min-height:100vh; background:#0A0F1C; }
-    #splash {
-      position:fixed; inset:0; z-index:9999; background:#0A0F1C;
-      display:flex; flex-direction:column; align-items:center; justify-content:center;
-      font-family: -apple-system, sans-serif; color:#D4A843;
-    }
+    #splash { position:fixed; inset:0; z-index:9999; background:#0A0F1C; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:-apple-system,sans-serif; color:#D4A843; }
     #splash .title { font-size:24px; font-weight:700; margin-bottom:6px; }
     #splash .sub { font-size:12px; color:#64748B; letter-spacing:2px; text-transform:uppercase; }
-    #splash .loader { margin-top:24px; width:36px; height:36px; border:3px solid #2A3654;
-      border-top-color:#D4A843; border-radius:50%; animation:sp .8s linear infinite; }
+    #splash .loader { margin-top:24px; width:36px; height:36px; border:3px solid #2A3654; border-top-color:#D4A843; border-radius:50%; animation:sp .8s linear infinite; }
     @keyframes sp { to { transform:rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="splash">
-    <div style="font-size:28px; margin-bottom:16px; opacity:0.5;">﷽</div>
-    <div class="title">Muslim Companion</div>
-    <div class="sub">Loading your Islamic guide...</div>
-    <div class="loader"></div>
-  </div>
+  <div id="splash"><div style="font-size:28px;margin-bottom:16px;opacity:0.5;">﷽</div><div class="title">Muslim Companion</div><div class="sub">Loading your Islamic guide...</div><div class="loader"></div></div>
   <div id="root"></div>
-
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.2/babel.min.js"></script>
   <script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback, useRef } = React;
+
+// ═══════════════════════════════════════════════════════════════
+// PERSISTENCE HOOK
+// ═══════════════════════════════════════════════════════════════
+
+function usePersistedState(key, defaultValue) {
+  const [state, setState] = useState(() => {
+    try {
+      const saved = localStorage.getItem("mc_" + key);
+      if (saved !== null) return JSON.parse(saved);
+    } catch {}
+    return defaultValue;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("mc_" + key, JSON.stringify(state));
+    } catch {}
+  }, [key, state]);
+
+  return [state, setState];
+}
+
+// Helper to save/load location across tabs
+function getSavedLocation() {
+  try {
+    const saved = localStorage.getItem("mc_location");
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return null;
+}
+
+function saveLocation(data) {
+  try {
+    localStorage.setItem("mc_location", JSON.stringify(data));
+  } catch {}
+}
 
 // ═══════════════════════════════════════════════════════════════
 // DATA
@@ -1430,13 +1456,14 @@ function SalahTracker() {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocation({ lat: latitude, lng: longitude });
+        let name = `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
         try {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
-          setLocationName(`${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`);
-        } catch {
-          setLocationName(`${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`);
-        }
+          name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
+        } catch {}
+        setLocationName(name);
+        saveLocation({ lat: latitude, lng: longitude, name });
         await fetchPrayerTimes(latitude, longitude);
       },
       () => {
@@ -1446,6 +1473,16 @@ function SalahTracker() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Auto-load saved location on mount
+  useEffect(() => {
+    const saved = getSavedLocation();
+    if (saved && saved.lat && saved.lng) {
+      setLocation({ lat: saved.lat, lng: saved.lng });
+      setLocationName(saved.name || "");
+      fetchPrayerTimes(saved.lat, saved.lng);
+    }
+  }, [fetchPrayerTimes]);
 
   const formatTime = (t) => {
     if (!t) return "--:--";
@@ -1724,8 +1761,8 @@ const CHALLENGE_ICONS = {
 
 function RamadanTracker() {
   const [activePhase, setActivePhase] = useState(0);
-  const [checkedGoals, setCheckedGoals] = useState({});
-  const [checkedChallenges, setCheckedChallenges] = useState({});
+  const [checkedGoals, setCheckedGoals] = usePersistedState("ramadan_goals", {});
+  const [checkedChallenges, setCheckedChallenges] = usePersistedState("ramadan_challenges", {});
   const [prayerTimes, setPrayerTimes] = useState(null);
   const [locationName, setLocationName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1747,13 +1784,11 @@ function RamadanTracker() {
       const mm = String(today.getMonth() + 1).padStart(2, "0");
       const yyyy = today.getFullYear();
 
-      // Today's times
       const resp = await fetch(
         `https://api.aladhan.com/v1/timings/${dd}-${mm}-${yyyy}?latitude=${lat}&longitude=${lng}&method=2`
       );
       const data = await resp.json();
 
-      // Tomorrow for Fajr (suhoor)
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dd2 = String(tomorrow.getDate()).padStart(2, "0");
@@ -1772,7 +1807,6 @@ function RamadanTracker() {
           fajrTomorrow: data2.data.timings.Fajr,
         });
 
-        // Check Hijri date for Ramadan
         const hijri = data.data.date.hijri;
         setHijriDate(`${hijri.day} ${hijri.month.en} ${hijri.year} AH`);
         if (hijri.month.number === 9) {
@@ -1804,13 +1838,14 @@ function RamadanTracker() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
+        let name = `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
         try {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
-          setLocationName(`${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`);
-        } catch {
-          setLocationName(`${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`);
-        }
+          name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
+        } catch {}
+        setLocationName(name);
+        saveLocation({ lat: latitude, lng: longitude, name });
         await fetchTimes(latitude, longitude);
       },
       () => {
@@ -1820,6 +1855,15 @@ function RamadanTracker() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Auto-load saved location
+  useEffect(() => {
+    const saved = getSavedLocation();
+    if (saved && saved.lat && saved.lng) {
+      setLocationName(saved.name || "");
+      fetchTimes(saved.lat, saved.lng);
+    }
+  }, [fetchTimes]);
 
   const formatTime = (t) => {
     if (!t) return "--:--";
@@ -2063,7 +2107,7 @@ function RamadanTracker() {
 
 // ─── DUAA JOURNAL ─────────────────────────────────────────────
 function DuaaJournal() {
-  const [duaas, setDuaas] = useState(DEFAULT_DUAAS);
+  const [duaas, setDuaas] = usePersistedState("duaas", DEFAULT_DUAAS);
   const [filter, setFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -2105,7 +2149,7 @@ function DuaaJournal() {
 
   const usedTags = [...new Set(duaas.flatMap(d => d.tags))].sort();
 
-  const [showEtiquette, setShowEtiquette] = useState(true);
+  const [showEtiquette, setShowEtiquette] = useState(false);
   const [showBestTimes, setShowBestTimes] = useState(false);
 
   const duaaSteps = [
@@ -2363,13 +2407,11 @@ function LastThirdOfNight() {
       const mm = String(today.getMonth() + 1).padStart(2, "0");
       const yyyy = today.getFullYear();
       
-      // Fetch today's times (for Maghrib) and tomorrow's times (for Fajr)
       const resp = await fetch(
         `https://api.aladhan.com/v1/timings/${dd}-${mm}-${yyyy}?latitude=${lat}&longitude=${lng}&method=2`
       );
       const data = await resp.json();
 
-      // Get tomorrow for Fajr
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dd2 = String(tomorrow.getDate()).padStart(2, "0");
@@ -2414,14 +2456,14 @@ function LastThirdOfNight() {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocation({ lat: latitude, lng: longitude });
-        // Reverse geocode (simple)
+        let name = `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`;
         try {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
-          setLocationName(`${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`);
-        } catch {
-          setLocationName(`${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`);
-        }
+          name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
+        } catch {}
+        setLocationName(name);
+        saveLocation({ lat: latitude, lng: longitude, name });
         await fetchPrayerTimes(latitude, longitude);
       },
       (err) => {
@@ -2431,6 +2473,16 @@ function LastThirdOfNight() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Auto-load saved location
+  useEffect(() => {
+    const saved = getSavedLocation();
+    if (saved && saved.lat && saved.lng) {
+      setLocation({ lat: saved.lat, lng: saved.lng });
+      setLocationName(saved.name || "");
+      fetchPrayerTimes(saved.lat, saved.lng);
+    }
+  }, [fetchPrayerTimes]);
 
   // Calculate last third from two time strings
   const calcLastThird = (maghribStr, fajrStr) => {
@@ -2661,14 +2713,15 @@ const DHIKR_PRESETS = [
 ];
 
 function DhikrCounter() {
+  const todayKey = new Date().toISOString().slice(0, 10);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [count, setCount] = useState(0);
   const [stepMode, setStepMode] = useState(1); // 1 or 10
   const [target, setTarget] = useState(DHIKR_PRESETS[0].target);
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions] = usePersistedState("dhikr_" + todayKey, []);
   const [showPulse, setShowPulse] = useState(false);
-  const [customArabic, setCustomArabic] = useState("");
-  const [customName, setCustomName] = useState("");
+  const [customArabic, setCustomArabic] = usePersistedState("dhikr_custom_ar", "");
+  const [customName, setCustomName] = usePersistedState("dhikr_custom_name", "");
 
   const preset = DHIKR_PRESETS[selectedIdx];
   const progress = Math.min((count / target) * 100, 100);
@@ -2932,11 +2985,7 @@ function MuslimCompanionApp() {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(MuslimCompanionApp));
 
-// Remove splash screen once rendered
-setTimeout(() => {
-  const splash = document.getElementById('splash');
-  if (splash) splash.style.display = 'none';
-}, 100);
+setTimeout(() => { const s = document.getElementById('splash'); if (s) s.style.display = 'none'; }, 100);
   </script>
 </body>
 </html>
