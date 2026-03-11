@@ -16,34 +16,49 @@
     #splash .sub { font-size:12px; color:#64748B; letter-spacing:2px; text-transform:uppercase; }
     #splash .loader { margin-top:24px; width:36px; height:36px; border:3px solid #2A3654; border-top-color:#D4A843; border-radius:50%; animation:sp .8s linear infinite; }
     @keyframes sp { to { transform:rotate(360deg); } }
+    #error-display { display:none; position:fixed; inset:0; z-index:99999; background:#0A0F1C; color:#F43F5E; padding:20px; font-family:monospace; font-size:12px; overflow:auto; white-space:pre-wrap; }
   </style>
 </head>
 <body>
   <div id="splash"><div style="font-size:28px;margin-bottom:16px;opacity:0.5;">﷽</div><div class="title">Muslim Companion</div><div class="sub">Loading your Islamic guide...</div><div class="loader"></div></div>
   <div id="root"></div>
+  <div id="error-display"></div>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.2/babel.min.js"></script>
-  <script type="text/babel" data-presets="react">
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.5/babel.min.js"></script>
+  <script id="app-source" type="text/plain">
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ═══════════════════════════════════════════════════════════════
 // PERSISTENCE HOOK
 // ═══════════════════════════════════════════════════════════════
 
+const hasStorage = (() => {
+  try {
+    const t = "__test__";
+    localStorage.setItem(t, t);
+    localStorage.removeItem(t);
+    return true;
+  } catch (err) {
+    return false;
+  }
+})();
+
 function usePersistedState(key, defaultValue) {
   const [state, setState] = useState(() => {
+    if (!hasStorage) return defaultValue;
     try {
       const saved = localStorage.getItem("mc_" + key);
       if (saved !== null) return JSON.parse(saved);
-    } catch {}
+    } catch (err) {}
     return defaultValue;
   });
 
   useEffect(() => {
+    if (!hasStorage) return;
     try {
       localStorage.setItem("mc_" + key, JSON.stringify(state));
-    } catch {}
+    } catch (err) {}
   }, [key, state]);
 
   return [state, setState];
@@ -51,17 +66,19 @@ function usePersistedState(key, defaultValue) {
 
 // Helper to save/load location across tabs
 function getSavedLocation() {
+  if (!hasStorage) return null;
   try {
     const saved = localStorage.getItem("mc_location");
     if (saved) return JSON.parse(saved);
-  } catch {}
+  } catch (err) {}
   return null;
 }
 
 function saveLocation(data) {
+  if (!hasStorage) return;
   try {
     localStorage.setItem("mc_location", JSON.stringify(data));
-  } catch {}
+  } catch (err) {}
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1021,8 +1038,8 @@ function ZakatInput({ label, value, onChange, placeholder }) {
     return parts.join(".");
   };
 
-  const handleChange = (e) => {
-    const raw = e.target.value.replace(/,/g, "");
+  const handleChange = (ev) => {
+    const raw = ev.target.value.replace(/,/g, "");
     const cleaned = raw.replace(/[^0-9.]/g, "");
     const parts = cleaned.split(".");
     const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned;
@@ -1143,8 +1160,8 @@ function ZakatCalculator() {
         <div style={{ display: "flex", gap: 8 }}>
           <div className="input-group" style={{ flex: 1 }}>
             <label className="input-label">Gold $/gram</label>
-            <input type="text" inputMode="decimal" className="input-field" value={goldPrice} onChange={e => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
+            <input type="text" inputMode="decimal" className="input-field" value={goldPrice} onChange={ev => {
+              const v = ev.target.value.replace(/[^0-9.]/g, "");
               setGoldPrice(v === "" ? "" : v);
               const grams = parseFloat(assets.goldGrams) || 0;
               if (grams > 0) {
@@ -1155,8 +1172,8 @@ function ZakatCalculator() {
           </div>
           <div className="input-group" style={{ flex: 1 }}>
             <label className="input-label">Silver $/gram</label>
-            <input type="text" inputMode="decimal" className="input-field" value={silverPrice} onChange={e => {
-              const v = e.target.value.replace(/[^0-9.]/g, "");
+            <input type="text" inputMode="decimal" className="input-field" value={silverPrice} onChange={ev => {
+              const v = ev.target.value.replace(/[^0-9.]/g, "");
               setSilverPrice(v === "" ? "" : v);
               const grams = parseFloat(assets.silverGrams) || 0;
               if (grams > 0) {
@@ -1197,8 +1214,8 @@ function ZakatCalculator() {
             style={{ paddingRight: 40 }}
             placeholder="0"
             value={assets.goldGrams || ""}
-            onChange={e => {
-              const raw = e.target.value.replace(/[^0-9.]/g, "");
+            onChange={ev => {
+              const raw = ev.target.value.replace(/[^0-9.]/g, "");
               const grams = raw;
               const val = (parseFloat(raw) || 0) * (parseFloat(goldPrice) || 0);
               setAssets(prev => ({ ...prev, goldGrams: grams, goldValue: val > 0 ? val.toFixed(2) : "" }));
@@ -1222,8 +1239,8 @@ function ZakatCalculator() {
             style={{ paddingRight: 40 }}
             placeholder="0"
             value={assets.silverGrams || ""}
-            onChange={e => {
-              const raw = e.target.value.replace(/[^0-9.]/g, "");
+            onChange={ev => {
+              const raw = ev.target.value.replace(/[^0-9.]/g, "");
               const grams = raw;
               const val = (parseFloat(raw) || 0) * (parseFloat(silverPrice) || 0);
               setAssets(prev => ({ ...prev, silverGrams: grams, silverValue: val > 0 ? val.toFixed(2) : "" }));
@@ -1299,7 +1316,7 @@ function NamesOfAllah() {
           className="input-field"
           placeholder="Search by name, meaning, or number..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={ev => setSearch(ev.target.value)}
         />
       </div>
 
@@ -1438,7 +1455,7 @@ function SalahTracker() {
       } else {
         setError("Could not fetch prayer times.");
       }
-    } catch {
+    } catch (_err) {
       setError("Network error. Please check your connection.");
     }
     setLoading(false);
@@ -1461,7 +1478,7 @@ function SalahTracker() {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
           name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
-        } catch {}
+        } catch (_err) {}
         setLocationName(name);
         saveLocation({ lat: latitude, lng: longitude, name });
         await fetchPrayerTimes(latitude, longitude);
@@ -1493,6 +1510,58 @@ function SalahTracker() {
   };
 
   const prayerIcons = { fajr: "🌅", sunrise: "☀️", dhuhr: "🌤️", asr: "⛅", maghrib: "🌇", isha: "🌙" };
+
+  // Countdown to next prayer
+  const [countdown, setCountdown] = useState(null);
+  const [nextPrayer, setNextPrayer] = useState(null);
+  const [currentPrayer, setCurrentPrayer] = useState(null);
+
+  useEffect(() => {
+    if (!prayerTimes) return;
+    const prayerOrder = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
+    const prayerLabels = { fajr: "Fajr", sunrise: "Sunrise", dhuhr: "Dhuhr", asr: "Asr", maghrib: "Maghrib", isha: "Isha" };
+
+    const tick = () => {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+      // Build array of prayer times in minutes
+      const times = prayerOrder.map((key) => {
+        const [h, m] = (prayerTimes[key] || "0:0").split(":").map(Number);
+        return { key, label: prayerLabels[key], minutes: h * 60 + m };
+      });
+
+      // Find next prayer
+      let next = null;
+      let curr = null;
+      for (let i = 0; i < times.length; i++) {
+        if (nowMin < times[i].minutes) {
+          next = times[i];
+          curr = i > 0 ? times[i - 1] : null;
+          break;
+        }
+      }
+
+      // If no next prayer found today, next is Fajr tomorrow
+      if (!next) {
+        next = { ...times[0], label: "Fajr (tomorrow)", minutes: times[0].minutes + 24 * 60 };
+        curr = times[times.length - 1];
+      }
+
+      const diffMin = next.minutes - nowMin;
+      const hours = Math.floor(diffMin / 60);
+      const mins = Math.floor(diffMin % 60);
+      const secs = Math.floor((diffMin * 60) % 60);
+
+      setNextPrayer(next);
+      setCurrentPrayer(curr);
+      setCountdown({ hours, mins, secs, totalMin: diffMin });
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [prayerTimes]);
 
   return (
     <div className="page">
@@ -1529,14 +1598,76 @@ function SalahTracker() {
             {prayerTimes.date} — {prayerTimes.hijri}
           </div>
 
+          {/* Countdown to next prayer */}
+          {countdown && nextPrayer && (
+            <div style={{
+              textAlign: "center", padding: "18px 16px", marginBottom: 14, borderRadius: 14,
+              background: "linear-gradient(135deg, rgba(212, 168, 67, 0.1), rgba(212, 168, 67, 0.03))",
+              border: "1px solid rgba(212, 168, 67, 0.2)",
+              position: "relative", overflow: "hidden",
+            }}>
+              {/* Progress bar for time between prayers */}
+              {currentPrayer && (
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 3,
+                  background: "var(--border)",
+                }}>
+                  <div style={{
+                    height: "100%",
+                    background: "var(--gold)",
+                    transition: "width 1s linear",
+                    width: `${Math.max(0, Math.min(100, ((currentPrayer.minutes + (nextPrayer.minutes - currentPrayer.minutes) - countdown.totalMin) / (nextPrayer.minutes - currentPrayer.minutes)) * 100))}%`,
+                  }} />
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>
+                {currentPrayer ? `After ${currentPrayer.label} · ` : ""}Next Prayer
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>{prayerIcons[nextPrayer.key] || "🕌"}</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: "var(--gold)" }}>{nextPrayer.label}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
+                {[
+                  { val: String(countdown.hours).padStart(2, "0"), label: "hr" },
+                  { val: String(countdown.mins).padStart(2, "0"), label: "min" },
+                  { val: String(countdown.secs).padStart(2, "0"), label: "sec" },
+                ].map((unit, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{
+                      background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                      borderRadius: 8, padding: "6px 10px", minWidth: 44, textAlign: "center",
+                    }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                        {unit.val}
+                      </div>
+                      <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", marginTop: 2 }}>{unit.label}</div>
+                    </div>
+                    {i < 2 && <span style={{ fontSize: 20, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>:</span>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 8 }}>
+                at {nextPrayer.label.includes("tomorrow") ? formatTime(prayerTimes.fajr) : formatTime(prayerTimes[nextPrayer.key] || "")}
+              </div>
+            </div>
+          )}
+
           {["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"].map(key => {
             const prayer = SUNNAH_PRAYERS.find(p => p.name.toLowerCase() === key);
+            const isNext = nextPrayer && nextPrayer.key === key;
             return (
-              <div key={key} className="prayer-row" style={key === "sunrise" ? { opacity: 0.6 } : {}}>
+              <div key={key} className="prayer-row" style={{
+                ...(key === "sunrise" ? { opacity: 0.6 } : {}),
+                ...(isNext ? { borderColor: "var(--gold)", background: "rgba(212, 168, 67, 0.06)" } : {}),
+              }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 100 }}>
                   <span style={{ fontSize: 16 }}>{prayerIcons[key]}</span>
                   <div>
-                    <div className="prayer-name" style={{ textTransform: "capitalize" }}>{key}</div>
+                    <div className="prayer-name" style={{ textTransform: "capitalize" }}>
+                      {key}
+                      {isNext && <span style={{ fontSize: 8, color: "#0A0F1C", background: "var(--gold)", padding: "1px 5px", borderRadius: 4, marginLeft: 6, fontWeight: 700, verticalAlign: "middle", letterSpacing: 0.5 }}>NEXT</span>}
+                    </div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gold)", marginTop: 1 }}>{formatTime(prayerTimes[key])}</div>
                   </div>
                 </div>
@@ -1673,7 +1804,7 @@ function AllChallenges({ challenges, checkedChallenges, setCheckedChallenges, ra
               }}
             >
               <button
-                onClick={(e) => { e.stopPropagation(); setCheckedChallenges(prev => ({ ...prev, [c.day]: !prev[c.day] })); }}
+                onClick={(ev) => { ev.stopPropagation(); setCheckedChallenges(prev => ({ ...prev, [c.day]: !prev[c.day] })); }}
                 style={{
                   flexShrink: 0, width: 22, height: 22, borderRadius: 5, marginTop: 1,
                   background: checkedChallenges[c.day] ? "var(--emerald)" : "transparent",
@@ -1710,7 +1841,7 @@ function AllChallenges({ challenges, checkedChallenges, setCheckedChallenges, ra
   );
 }
 
-// Ramadan 2026 is expected ~Feb 17 to ~Mar 19, 2026 (1 Ramadan – 30 Ramadan 1447 AH)
+// Ramadan day is determined dynamically from the Aladhan API's Hijri calendar
 // We'll use the Aladhan API to get the actual Hijri date dynamically
 
 const DAILY_CHALLENGES = [
@@ -1810,8 +1941,8 @@ function RamadanTracker() {
         const hijri = data.data.date.hijri;
         setHijriDate(`${hijri.day} ${hijri.month.en} ${hijri.year} AH`);
         if (hijri.month.number === 9) {
-          setRamadanDay(parseInt(hijri.day));
           const day = parseInt(hijri.day);
+          setRamadanDay(day);
           if (day <= 10) setActivePhase(0);
           else if (day <= 20) setActivePhase(1);
           else setActivePhase(2);
@@ -1821,7 +1952,7 @@ function RamadanTracker() {
       } else {
         setError("Could not fetch prayer times.");
       }
-    } catch {
+    } catch (_err) {
       setError("Network error. Check your connection.");
     }
     setLoading(false);
@@ -1843,7 +1974,7 @@ function RamadanTracker() {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
           name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
-        } catch {}
+        } catch (_err) {}
         setLocationName(name);
         saveLocation({ lat: latitude, lng: longitude, name });
         await fetchTimes(latitude, longitude);
@@ -1856,14 +1987,45 @@ function RamadanTracker() {
     );
   };
 
-  // Auto-load saved location
+  const [isChecking, setIsChecking] = useState(true);
+
+  // Auto-check Hijri date on mount (no location needed)
   useEffect(() => {
-    const saved = getSavedLocation();
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, "0");
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const yyyy = today.getFullYear();
+
+    fetch("https://api.aladhan.com/v1/gToH/" + dd + "-" + mm + "-" + yyyy)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.code === 200) {
+          var hijri = data.data.hijri;
+          setHijriDate(hijri.day + " " + hijri.month.en + " " + hijri.year + " AH");
+          if (hijri.month.number === 9) {
+            var day = parseInt(hijri.day);
+            setRamadanDay(day);
+            if (day <= 10) setActivePhase(0);
+            else if (day <= 20) setActivePhase(1);
+            else setActivePhase(2);
+          }
+        }
+        setIsChecking(false);
+      })
+      .catch(function() {
+        setIsChecking(false);
+      });
+  }, []);
+
+  // Once we know it's Ramadan, auto-load saved location for iftar/suhoor
+  useEffect(() => {
+    if (!ramadanDay) return;
+    var saved = getSavedLocation();
     if (saved && saved.lat && saved.lng) {
       setLocationName(saved.name || "");
       fetchTimes(saved.lat, saved.lng);
     }
-  }, [fetchTimes]);
+  }, [ramadanDay, fetchTimes]);
 
   const formatTime = (t) => {
     if (!t) return "--:--";
@@ -1891,21 +2053,84 @@ function RamadanTracker() {
   const previewDay = ramadanDay || 1;
   const previewChallenge = DAILY_CHALLENGES.find(c => c.day === previewDay);
 
+  // Countdown to next Ramadan (approximate - Sha'ban 1447 / Feb 2026)
+  const NEXT_RAMADAN = new Date(2026, 1, 18); // Feb 18, 2026 estimate
+  const [daysUntilRamadan, setDaysUntilRamadan] = useState(null);
+
+  useEffect(() => {
+    if (ramadanDay) { setDaysUntilRamadan(null); return; }
+    var tick = function() {
+      var now = new Date();
+      var target = new Date(NEXT_RAMADAN);
+      // If we're past this Ramadan estimate, assume next year
+      if (now > new Date(2026, 2, 20)) {
+        target = new Date(2027, 1, 7); // rough estimate for 2027
+      }
+      var diff = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+      setDaysUntilRamadan(diff > 0 ? diff : null);
+    };
+    tick();
+    var interval = setInterval(tick, 60000);
+    return function() { clearInterval(interval); };
+  }, [ramadanDay]);
+
   return (
     <div className="page">
       <div className="section-title">Ramadan Companion</div>
       <div className="section-desc">Your daily Ramadan schedule, iftar & suhoor times, and spiritual goals.</div>
 
-      {/* GPS / Schedule section */}
-      {!prayerTimes && (
+      {/* If NOT Ramadan: show countdown */}
+      {!ramadanDay && !isChecking && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            textAlign: "center", padding: "30px 20px", borderRadius: 16,
+            background: "linear-gradient(135deg, rgba(212, 168, 67, 0.08), rgba(168, 85, 247, 0.06))",
+            border: "1px solid rgba(212, 168, 67, 0.2)",
+            marginBottom: 16,
+          }}>
+            <div style={{ fontFamily: "'Amiri', serif", fontSize: 32, color: "var(--gold)", marginBottom: 4 }}>رَمَضَان</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 16 }}>Countdown to Ramadan</div>
+            {daysUntilRamadan ? (
+              <>
+                <div style={{ fontSize: 64, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>{daysUntilRamadan}</div>
+                <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 4 }}>
+                  {daysUntilRamadan === 1 ? "day remaining" : "days remaining"}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+                Ramadan dates will be confirmed closer to the month.
+              </div>
+            )}
+            {hijriDate && (
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 12 }}>
+                Today: {hijriDate}
+              </div>
+            )}
+          </div>
+
+          <div className="info-box">
+            <strong>Prepare for Ramadan:</strong> Start fasting Mondays and Thursdays, increase your Quran reading, give regular sadaqah, and make a duaa list for what you want to ask Allah during the blessed month.
+          </div>
+        </div>
+      )}
+
+      {/* Loading state while checking Hijri date */}
+      {isChecking && (
+        <div className="status-badge loading" style={{ marginBottom: 14 }}><span className="status-dot" />Checking Hijri calendar...</div>
+      )}
+
+      {/* GPS button when Ramadan is active */}
+      {ramadanDay && !prayerTimes && (
         <button className="btn-primary" onClick={requestLocation} disabled={loading} style={{ marginBottom: 14 }}>
           {loading ? "Detecting Location..." : "📍 Get Today's Ramadan Schedule"}
         </button>
       )}
       {loading && <div className="status-badge loading"><span className="status-dot" />Loading...</div>}
-      {error && <div className="status-badge error" style={{ marginBottom: 12 }}><span className="status-dot" />{error}</div>}
+      {ramadanDay && error && <div className="status-badge error" style={{ marginBottom: 12 }}><span className="status-dot" />{error}</div>}
 
-      {prayerTimes && (
+      {/* Active Ramadan: full schedule */}
+      {ramadanDay && prayerTimes && (
         <div style={{ marginBottom: 20, animation: "fadeIn 0.3s ease" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             {locationName && (
@@ -1917,8 +2142,7 @@ function RamadanTracker() {
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>{hijriDate}</div>
 
           {/* Ramadan day hero */}
-          {ramadanDay ? (
-            <div style={{
+          <div style={{
               textAlign: "center", padding: "20px 16px", marginBottom: 14,
               background: "linear-gradient(135deg, rgba(212, 168, 67, 0.12), rgba(212, 168, 67, 0.04))",
               border: "1px solid rgba(212, 168, 67, 0.25)", borderRadius: 14,
@@ -1940,19 +2164,6 @@ function RamadanTracker() {
                 {30 - ramadanDay} days remaining
               </div>
             </div>
-          ) : (
-            <div style={{
-              textAlign: "center", padding: "16px", marginBottom: 14,
-              background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12,
-            }}>
-              <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                It is not currently Ramadan. Showing preview times & schedule below.
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                Ramadan 1447 AH is expected around Feb–Mar 2026
-              </div>
-            </div>
-          )}
 
           {/* Iftar & Suhoor cards */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -1990,7 +2201,8 @@ function RamadanTracker() {
         </div>
       )}
 
-      {/* Daily Good Deed Challenge */}
+      {/* Daily Good Deed Challenge - only during Ramadan */}
+      {ramadanDay && (
       <div style={{
         marginBottom: 16, padding: "16px", borderRadius: 14,
         background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.03))",
@@ -1998,17 +2210,16 @@ function RamadanTracker() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>{CHALLENGE_ICONS[previewChallenge?.category] || "✨"}</span>
+            <span style={{ fontSize: 18 }}>{CHALLENGE_ICONS[previewChallenge && previewChallenge.category] || "✨"}</span>
             <div>
               <div style={{ fontSize: 10, color: "var(--emerald)", textTransform: "uppercase", letterSpacing: 1 }}>
-                {ramadanDay ? "Today's Good Deed" : "Daily Challenge Preview — Day 1"}
+                Today's Good Deed
               </div>
               <div style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "capitalize", marginTop: 1 }}>
-                {previewChallenge?.category}
+                {previewChallenge && previewChallenge.category}
               </div>
             </div>
           </div>
-          {ramadanDay && (
             <button
               onClick={() => setCheckedChallenges(prev => ({ ...prev, [previewDay]: !prev[previewDay] }))}
               style={{
@@ -2021,24 +2232,26 @@ function RamadanTracker() {
             >
               {checkedChallenges[previewDay] ? "✓" : ""}
             </button>
-          )}
         </div>
         <div style={{
           fontSize: 14, color: "var(--text-primary)", lineHeight: 1.6,
           textDecoration: checkedChallenges[previewDay] ? "line-through" : "none",
           opacity: checkedChallenges[previewDay] ? 0.6 : 1,
         }}>
-          {previewChallenge?.deed}
+          {previewChallenge && previewChallenge.deed}
         </div>
       </div>
+      )}
 
-      {/* All 30 Day Challenges (collapsed) */}
+      {/* All 30 Day Challenges (collapsed) - only during Ramadan */}
+      {ramadanDay && (
       <AllChallenges
         challenges={DAILY_CHALLENGES}
         checkedChallenges={checkedChallenges}
         setCheckedChallenges={setCheckedChallenges}
         ramadanDay={ramadanDay}
       />
+      )}
 
       <div className="divider" />
 
@@ -2327,19 +2540,19 @@ function DuaaJournal() {
             className="arabic-textarea"
             placeholder="Arabic text (optional)..."
             value={newDuaa.arabic}
-            onChange={e => setNewDuaa(prev => ({ ...prev, arabic: e.target.value }))}
+            onChange={ev => setNewDuaa(prev => ({ ...prev, arabic: ev.target.value }))}
           />
           <textarea
             placeholder="English translation / meaning..."
             value={newDuaa.english}
-            onChange={e => setNewDuaa(prev => ({ ...prev, english: e.target.value }))}
+            onChange={ev => setNewDuaa(prev => ({ ...prev, english: ev.target.value }))}
           />
           <input
             type="text"
             className="input-field"
             placeholder="Reference (e.g., Quran 2:286, Tirmidhi)"
             value={newDuaa.reference}
-            onChange={e => setNewDuaa(prev => ({ ...prev, reference: e.target.value }))}
+            onChange={ev => setNewDuaa(prev => ({ ...prev, reference: ev.target.value }))}
             style={{ marginBottom: 10 }}
           />
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Select tags:</div>
@@ -2461,7 +2674,7 @@ function LastThirdOfNight() {
           const geoResp = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
           const geoData = await geoResp.json();
           name = `${geoData.city || geoData.locality || "Unknown"}, ${geoData.countryName || ""}`;
-        } catch {}
+        } catch (_err) {}
         setLocationName(name);
         saveLocation({ lat: latitude, lng: longitude, name });
         await fetchPrayerTimes(latitude, longitude);
@@ -2526,8 +2739,8 @@ function LastThirdOfNight() {
     };
   };
 
-  const maghribTime = prayerTimes?.maghrib || (manualMode ? manualMaghrib : null);
-  const fajrTime = prayerTimes?.fajrTomorrow || (manualMode ? manualFajr : null);
+  const maghribTime = prayerTimes && prayerTimes.maghrib || (manualMode ? manualMaghrib : null);
+  const fajrTime = prayerTimes && prayerTimes.fajrTomorrow || (manualMode ? manualFajr : null);
   const calculation = (maghribTime && fajrTime) ? calcLastThird(maghribTime, fajrTime) : null;
 
   const formatPrayerTime = (t) => {
@@ -2576,11 +2789,11 @@ function LastThirdOfNight() {
           <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)", marginBottom: 10 }}>Manual Entry</div>
           <div className="input-group">
             <label className="input-label">Maghrib Time (today)</label>
-            <input type="time" className="input-field" value={manualMaghrib} onChange={e => setManualMaghrib(e.target.value)} />
+            <input type="time" className="input-field" value={manualMaghrib} onChange={ev => setManualMaghrib(ev.target.value)} />
           </div>
           <div className="input-group">
             <label className="input-label">Fajr Time (tomorrow)</label>
-            <input type="time" className="input-field" value={manualFajr} onChange={e => setManualFajr(e.target.value)} />
+            <input type="time" className="input-field" value={manualFajr} onChange={ev => setManualFajr(ev.target.value)} />
           </div>
         </div>
       )}
@@ -2699,6 +2912,104 @@ function LastThirdOfNight() {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
 
+const MORNING_ADHKAR = [
+  { arabic: "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ\nاللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...", label: "Ayat al-Kursi", transliteration: "Allahu la ilaha illa Huwal-Hayyul-Qayyum...", translation: "Allah — there is no deity except Him, the Ever-Living, the Self-Sustaining...", times: "1×", reference: "An-Nasa'i" },
+  { arabic: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ هُوَ اللَّهُ أَحَدٌ...", label: "Surah Al-Ikhlas", translation: "Say: He is Allah, the One...", times: "3×", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ الْفَلَقِ...", label: "Surah Al-Falaq", translation: "Say: I seek refuge in the Lord of the daybreak...", times: "3×", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nقُلْ أَعُوذُ بِرَبِّ النَّاسِ...", label: "Surah An-Nas", translation: "Say: I seek refuge in the Lord of mankind...", times: "3×", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ، لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "Morning supplication", translation: "We have entered the morning and at this time all sovereignty belongs to Allah. All praise is for Allah. None has the right to be worshipped except Allah alone, without partner...", times: "1×", reference: "Muslim" },
+  { arabic: "اللَّهُمَّ بِكَ أَصْبَحْنَا وَبِكَ أَمْسَيْنَا وَبِكَ نَحْيَا وَبِكَ نَمُوتُ وَإِلَيْكَ النُّشُورُ", label: "By You we enter the morning", translation: "O Allah, by You we enter the morning and by You we enter the evening, by You we live and by You we die, and to You is the resurrection.", times: "1×", reference: "Tirmidhi" },
+  { arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَٰهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ، وَأَنَا عَلَىٰ عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ، أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ، أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ وَأَبُوءُ بِذَنْبِي فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ", label: "Sayyid al-Istighfar (Master of Forgiveness)", translation: "O Allah, You are my Lord. None has the right to be worshipped except You. You created me and I am Your servant. I abide by Your covenant as best I can. I seek refuge in You from the evil I have done. I acknowledge Your blessings upon me, and I acknowledge my sins. So forgive me, for none forgives sins except You.", times: "1×", reference: "Bukhari" },
+  { arabic: "اللَّهُمَّ إِنِّي أَصْبَحْتُ أُشْهِدُكَ وَأُشْهِدُ حَمَلَةَ عَرْشِكَ وَمَلَائِكَتَكَ وَجَمِيعَ خَلْقِكَ أَنَّكَ أَنْتَ اللَّهُ لَا إِلَٰهَ إِلَّا أَنْتَ وَحْدَكَ لَا شَرِيكَ لَكَ وَأَنَّ مُحَمَّدًا عَبْدُكَ وَرَسُولُكَ", label: "Bearing witness", translation: "O Allah, I have entered a new morning and call upon You, the bearers of Your Throne, Your angels, and all creation to bear witness that You are Allah, none has the right to be worshipped except You, alone, without partner, and that Muhammad is Your slave and Messenger.", times: "4×", reference: "Abu Dawud" },
+  { arabic: "اللَّهُمَّ مَا أَصْبَحَ بِي مِنْ نِعْمَةٍ أَوْ بِأَحَدٍ مِنْ خَلْقِكَ فَمِنْكَ وَحْدَكَ لَا شَرِيكَ لَكَ فَلَكَ الْحَمْدُ وَلَكَ الشُّكْرُ", label: "Gratitude for blessings", translation: "O Allah, whatever blessing I or any of Your creation have received this morning is from You alone, without partner. So for You is all praise and to You all thanks.", times: "1×", reference: "Abu Dawud" },
+  { arabic: "اللَّهُمَّ عَافِنِي فِي بَدَنِي، اللَّهُمَّ عَافِنِي فِي سَمْعِي، اللَّهُمَّ عَافِنِي فِي بَصَرِي، لَا إِلَٰهَ إِلَّا أَنْتَ", label: "Health & wellbeing", translation: "O Allah, grant health to my body. O Allah, grant health to my hearing. O Allah, grant health to my sight. None has the right to be worshipped except You.", times: "3×", reference: "Abu Dawud" },
+  { arabic: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْهَمِّ وَالْحَزَنِ، وَأَعُوذُ بِكَ مِنَ الْعَجْزِ وَالْكَسَلِ، وَأَعُوذُ بِكَ مِنَ الْجُبْنِ وَالْبُخْلِ، وَأَعُوذُ بِكَ مِنْ غَلَبَةِ الدَّيْنِ وَقَهْرِ الرِّجَالِ", label: "Refuge from anxiety & weakness", translation: "O Allah, I seek refuge in You from worry and grief, from weakness and laziness, from cowardice and miserliness, from the burden of debts and being overpowered by men.", times: "3×", reference: "Abu Dawud" },
+  { arabic: "بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ", label: "Protection from harm", translation: "In the Name of Allah, with whose Name nothing on earth or in the heavens can cause harm, and He is the All-Hearing, the All-Knowing.", times: "3×", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "حَسْبِيَ اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", label: "Allah is sufficient for me", translation: "Allah is sufficient for me. None has the right to be worshipped but Him. In Him I put my trust, and He is the Lord of the Mighty Throne.", times: "7×", reference: "Abu Dawud" },
+  { arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", label: "Glory and praise to Allah", translation: "Glory and praise be to Allah.", times: "100×", reference: "Muslim, Bukhari" },
+  { arabic: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "Tahleel", translation: "None has the right to be worshipped except Allah alone, with no partner. His is the dominion, His is the praise, and He is over all things capable.", times: "10× (or 100×)", reference: "Bukhari, Muslim" },
+  { arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ وَرِضَا نَفْسِهِ وَزِنَةَ عَرْشِهِ وَمِدَادَ كَلِمَاتِهِ", label: "Glorification with creation", translation: "Glory and praise be to Allah, by the number of His creation, by His pleasure, by the weight of His Throne, and by the extent of His words.", times: "3×", reference: "Muslim" },
+  { arabic: "أَصْبَحْنَا عَلَى فِطْرَةِ الْإِسْلَامِ وَعَلَى كَلِمَةِ الْإِخْلَاصِ وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ", label: "Upon the fitrah of Islam", translation: "We have risen upon the natural religion of Islam, the word of sincere devotion, the religion of our Prophet Muhammad, and upon the way of our father Ibrahim, upright and Muslim, and he was not of the polytheists.", times: "1×", reference: "Ahmad" },
+];
+
+const EVENING_ADHKAR = [
+  { arabic: "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ\nاللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...", label: "Ayat al-Kursi", translation: "Allah — there is no deity except Him, the Ever-Living, the Self-Sustaining...", times: "1×", reference: "An-Nasa'i" },
+  { arabic: "قُلْ هُوَ اللَّهُ أَحَدٌ / قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ / قُلْ أَعُوذُ بِرَبِّ النَّاسِ", label: "Al-Ikhlas, Al-Falaq, An-Nas", translation: "Recite these three surahs together.", times: "3× each", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ، لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "Evening supplication", translation: "We have entered the evening and all sovereignty belongs to Allah. All praise is for Allah. None has the right to be worshipped except Allah alone...", times: "1×", reference: "Muslim" },
+  { arabic: "اللَّهُمَّ بِكَ أَمْسَيْنَا وَبِكَ أَصْبَحْنَا وَبِكَ نَحْيَا وَبِكَ نَمُوتُ وَإِلَيْكَ الْمَصِيرُ", label: "By You we enter the evening", translation: "O Allah, by You we enter the evening and by You we enter the morning, by You we live and by You we die, and to You is the final return.", times: "1×", reference: "Tirmidhi" },
+  { arabic: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَٰهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ...", label: "Sayyid al-Istighfar (Master of Forgiveness)", translation: "O Allah, You are my Lord. None has the right to be worshipped except You. You created me and I am Your servant...", times: "1×", reference: "Bukhari" },
+  { arabic: "اللَّهُمَّ إِنِّي أَمْسَيْتُ أُشْهِدُكَ وَأُشْهِدُ حَمَلَةَ عَرْشِكَ وَمَلَائِكَتَكَ وَجَمِيعَ خَلْقِكَ أَنَّكَ أَنْتَ اللَّهُ لَا إِلَٰهَ إِلَّا أَنْتَ وَحْدَكَ لَا شَرِيكَ لَكَ وَأَنَّ مُحَمَّدًا عَبْدُكَ وَرَسُولُكَ", label: "Bearing witness (evening)", translation: "O Allah, I have entered the evening and call upon You, the bearers of Your Throne, Your angels, and all creation to bear witness that You are Allah...", times: "4×", reference: "Abu Dawud" },
+  { arabic: "اللَّهُمَّ مَا أَمْسَى بِي مِنْ نِعْمَةٍ أَوْ بِأَحَدٍ مِنْ خَلْقِكَ فَمِنْكَ وَحْدَكَ لَا شَرِيكَ لَكَ فَلَكَ الْحَمْدُ وَلَكَ الشُّكْرُ", label: "Gratitude for blessings", translation: "O Allah, whatever blessing I or any of Your creation have received this evening is from You alone...", times: "1×", reference: "Abu Dawud" },
+  { arabic: "اللَّهُمَّ عَافِنِي فِي بَدَنِي، اللَّهُمَّ عَافِنِي فِي سَمْعِي، اللَّهُمَّ عَافِنِي فِي بَصَرِي، لَا إِلَٰهَ إِلَّا أَنْتَ", label: "Health & wellbeing", translation: "O Allah, grant health to my body, hearing, and sight. None has the right to be worshipped except You.", times: "3×", reference: "Abu Dawud" },
+  { arabic: "بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ وَهُوَ السَّمِيعُ الْعَلِيمُ", label: "Protection from harm", translation: "In the Name of Allah, with whose Name nothing can cause harm on earth or in the heavens...", times: "3×", reference: "Abu Dawud, Tirmidhi" },
+  { arabic: "حَسْبِيَ اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", label: "Allah is sufficient for me", translation: "Allah is sufficient for me. None has the right to be worshipped but Him...", times: "7×", reference: "Abu Dawud" },
+  { arabic: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ", label: "Refuge in Allah's perfect words", translation: "I seek refuge in the perfect words of Allah from the evil of what He has created.", times: "3×", reference: "Muslim" },
+  { arabic: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ", label: "Glory and praise to Allah", translation: "Glory and praise be to Allah.", times: "100×", reference: "Muslim, Bukhari" },
+  { arabic: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "Tahleel", translation: "None has the right to be worshipped except Allah alone, with no partner...", times: "10× (or 100×)", reference: "Bukhari, Muslim" },
+  { arabic: "أَمْسَيْنَا عَلَى فِطْرَةِ الْإِسْلَامِ وَعَلَى كَلِمَةِ الْإِخْلَاصِ وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ", label: "Upon the fitrah of Islam", translation: "We have entered the evening upon the natural religion of Islam...", times: "1×", reference: "Ahmad" },
+];
+
+const AFTER_PRAYER_ADHKAR = [
+  { arabic: "أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ", label: "Istighfar (seeking forgiveness)", translation: "I seek the forgiveness of Allah. (3 times)", times: "3×", reference: "Muslim" },
+  { arabic: "اللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ", label: "O Allah, You are Peace", translation: "O Allah, You are Peace and from You is peace. Blessed are You, O Possessor of Majesty and Honor.", times: "1×", reference: "Muslim" },
+  { arabic: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ، اللَّهُمَّ لَا مَانِعَ لِمَا أَعْطَيْتَ وَلَا مُعْطِيَ لِمَا مَنَعْتَ وَلَا يَنْفَعُ ذَا الْجَدِّ مِنْكَ الْجَدُّ", label: "Declaration of Tawheed", translation: "None has the right to be worshipped except Allah alone, without partner. His is the dominion and His is the praise, and He is over all things capable. O Allah, none can prevent what You bestow and none can bestow what You prevent...", times: "1×", reference: "Bukhari, Muslim" },
+  { arabic: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ وَشُكْرِكَ وَحُسْنِ عِبَادَتِكَ", label: "Help me in worship", translation: "O Allah, help me to remember You, to be grateful to You, and to worship You in the best manner.", times: "1×", reference: "Abu Dawud, Nasa'i" },
+  { arabic: "سُبْحَانَ اللَّهِ (٣٣) الْحَمْدُ لِلَّهِ (٣٣) اللَّهُ أَكْبَرُ (٣٤)\nلَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "Tasbeeh, Tahmeed, Takbeer + Tahleel", translation: "SubhanAllah (33×), Alhamdulillah (33×), Allahu Akbar (34×), then say: 'None has the right to be worshipped except Allah alone...' to complete 100.", times: "33+33+34", reference: "Muslim" },
+  { arabic: "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...", label: "Ayat al-Kursi", translation: "Whoever recites Ayat al-Kursi after every obligatory prayer, nothing prevents him from entering Paradise except death.", times: "1×", reference: "Nasa'i" },
+  { arabic: "قُلْ هُوَ اللَّهُ أَحَدٌ / قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ / قُلْ أَعُوذُ بِرَبِّ النَّاسِ", label: "Al-Ikhlas, Al-Falaq, An-Nas", translation: "Once after each prayer; 3× after Fajr and Maghrib.", times: "1× (3× Fajr/Maghrib)", reference: "Abu Dawud" },
+  { arabic: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ يُحْيِي وَيُمِيتُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", label: "After Fajr & Maghrib specifically", translation: "None has the right to be worshipped except Allah alone... He gives life and causes death, and He is over all things capable.", times: "10× after Fajr/Maghrib", reference: "Bukhari, Muslim" },
+  { arabic: "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا طَيِّبًا وَعَمَلًا مُتَقَبَّلًا", label: "After Fajr specifically", translation: "O Allah, I ask You for knowledge that is beneficial, provision that is good, and deeds that are accepted.", times: "1× after Fajr", reference: "Ibn Majah" },
+];
+
+function AdhkarSection({ title, icon, color, adhkarList }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="card" style={{ borderColor: expanded ? color : "var(--border)", marginBottom: 10 }}>
+      <div className="collapsible-header" onClick={() => setExpanded(!expanded)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>{icon}</span>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 600, color }}>{title}</span>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{adhkarList.length} adhkar</div>
+          </div>
+        </div>
+        <span style={{ fontSize: 12, color: "var(--text-muted)", transition: "transform 0.2s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 14, animation: "fadeIn 0.3s ease" }}>
+          {adhkarList.map((dhikr, i) => (
+            <div key={i} style={{
+              padding: "12px 0",
+              borderBottom: i < adhkarList.length - 1 ? "1px solid var(--border)" : "none",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{dhikr.label}</span>
+                <span style={{
+                  fontSize: 10, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
+                  background: `${color}20`, color, fontWeight: 600,
+                }}>{dhikr.times}</span>
+              </div>
+              <div style={{
+                fontFamily: "'Amiri', serif", fontSize: 18, color: "var(--gold-light)",
+                direction: "rtl", textAlign: "right", lineHeight: 1.8, marginBottom: 6,
+                whiteSpace: "pre-line",
+              }}>
+                {dhikr.arabic}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 4 }}>
+                {dhikr.translation}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", fontStyle: "italic" }}>
+                {dhikr.reference}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── DHIKR COUNTER ────────────────────────────────────────────
 
 const DHIKR_PRESETS = [
@@ -2764,8 +3075,17 @@ function DhikrCounter() {
 
   return (
     <div className="page">
-      <div className="section-title">Dhikr Counter</div>
-      <div className="section-desc">Remember Allah often. Tap the circle to count, choose +1 or +10 mode.</div>
+      <div className="section-title">Dhikr & Adhkar</div>
+      <div className="section-desc">Daily remembrances and a tap counter. Tap any section below to expand the full list.</div>
+
+      {/* Adhkar Sections */}
+      <AdhkarSection title="Morning Adhkar (أذكار الصباح)" icon="🌅" color="#F59E0B" adhkarList={MORNING_ADHKAR} />
+      <AdhkarSection title="Evening Adhkar (أذكار المساء)" icon="🌙" color="#A855F7" adhkarList={EVENING_ADHKAR} />
+      <AdhkarSection title="After Prayer (أذكار بعد الصلاة)" icon="🕌" color="#10B981" adhkarList={AFTER_PRAYER_ADHKAR} />
+
+      <div className="divider" />
+
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gold)", marginBottom: 12 }}>Tap Counter</div>
 
       {/* Preset selector */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
@@ -2786,15 +3106,15 @@ function DhikrCounter() {
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="input-group">
             <label className="input-label">Dhikr Name</label>
-            <input type="text" className="input-field" placeholder="e.g. Hasbunallah" value={customName} onChange={e => setCustomName(e.target.value)} />
+            <input type="text" className="input-field" placeholder="e.g. Hasbunallah" value={customName} onChange={ev => setCustomName(ev.target.value)} />
           </div>
           <div className="input-group">
             <label className="input-label">Arabic Text (optional)</label>
-            <input type="text" className="input-field arabic" style={{ fontFamily: "'Amiri', serif", fontSize: 20, textAlign: "right", direction: "rtl" }} placeholder="..." value={customArabic} onChange={e => setCustomArabic(e.target.value)} />
+            <input type="text" className="input-field arabic" style={{ fontFamily: "'Amiri', serif", fontSize: 20, textAlign: "right", direction: "rtl" }} placeholder="..." value={customArabic} onChange={ev => setCustomArabic(ev.target.value)} />
           </div>
           <div className="input-group" style={{ marginBottom: 0 }}>
             <label className="input-label">Target Count</label>
-            <input type="text" inputMode="numeric" className="input-field" value={target} onChange={e => { const v = parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0; setTarget(v); }} />
+            <input type="text" inputMode="numeric" className="input-field" value={target} onChange={ev => { const v = parseInt(ev.target.value.replace(/[^0-9]/g, "")) || 0; setTarget(v); }} />
           </div>
         </div>
       )}
@@ -2982,10 +3302,27 @@ function MuslimCompanionApp() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(React.createElement(MuslimCompanionApp));
-
-setTimeout(() => { const s = document.getElementById('splash'); if (s) s.style.display = 'none'; }, 100);
+  </script>
+  <script>
+    try {
+      var sourceEl = document.getElementById('app-source');
+      var sourceCode = sourceEl.textContent;
+      var transformed = Babel.transform(sourceCode, {
+        plugins: [['transform-react-jsx', { runtime: 'classic' }]],
+        filename: 'app.jsx'
+      }).code;
+      (0, eval)(transformed);
+      var splash = document.getElementById('splash');
+      if (splash) splash.style.display = 'none';
+    } catch(err) {
+      var errEl = document.getElementById('error-display');
+      errEl.style.display = 'block';
+      errEl.textContent = err.message + '\n\n' + (err.stack || '');
+      var s = document.getElementById('splash');
+      if (s) s.style.display = 'none';
+    }
   </script>
 </body>
 </html>
